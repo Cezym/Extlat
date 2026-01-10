@@ -55,9 +55,11 @@ if __name__ == "__main__":
         {1, 2, 3, 5},
         {2, 5}
     ]
+    loader = TransactionLoader()
+    loader.load(r"data/chess.txt")
 
     # Ustawiamy support na 0.5 (czyli 50% -> min. 2 wystąpienia)
-    miner = EclatMiner(min_support=0.5, dataset=dummy_data)
+    miner = EclatMiner(min_support=0.2, dataset=loader.transactions)
     results = miner.find_frequent_itemsets()
 
     print(f"--- Wyniki dla danych testowych (Support: {miner.min_support_count}) ---")
