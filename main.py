@@ -1,62 +1,58 @@
-import time, tracemalloc, psutil, csv
+import time
+import tracemalloc
 from pathlib import Path
+
+import psutil
 from fim import apriori
 from data_manager import TransactionLoader
 
 
 def profile_algorithm(alg, data_path):
+    print(f"=== Profil dla {data_path.name} ===")
+
+    # 1. Ładujemy dane
     tl = TransactionLoader()
     tl.load(data_path)
 
+    # 2. Rozpoczynamy pomiar
     start_wall = time.perf_counter()
     tracemalloc.start()
-    proc = psutil.Process()
 
+    t = psutil.Process().cpu_times()
+    cpu_user_start, cpu_system_start = t.user, t.system
+
+    # 3. Uruchamiamy algorytm
     answer = alg(tl.transactions)
 
+    # 4. Kończymy pomiar
     current, peak = tracemalloc.get_traced_memory()
     tracemalloc.stop()
-    end_wall = time.perf_counter()
-    rss = proc.memory_info().rss / 1024 ** 2
-    wall_time = end_wall - start_wall
 
-    return {
-        "answer": answer,
-        "wall_time": wall_time,
-        "peak_mem_kib": peak / 1024,
-        "rss_mb": rss,
-    }
+    end_wall = time.perf_counter()
+    t = psutil.Process().cpu_times()
+    cpu_user_end, cpu_system_end = t.user, t.system
+
+    rss_mb = psutil.Process().memory_info().rss / 1024 ** 2
+
+    # 5. Wynik
+    print(f"Answer          : {answer}")
+    print(f"Wall‑time       : {end_wall - start_wall:.6f}s")
+    print(f"CPU user time   : {cpu_user_end - cpu_user_start:.6f}s")
+    print(f"CPU system time : {cpu_system_end - cpu_system_start:.6f}s")
+    print(f"Peak memory     : {peak / 1024:.2f} KiB (tracemalloc)")
+    print(f"RSS process     : {rss_mb:.2f} MB\n")
+
+    return answer
 
 
 def main():
     data_folder = Path("data")
-    algs = [apriori]
+    algorithms = [apriori]
 
-    results_csv = []
-    for alg in algs:
-        print(f"\n=== Algorithm: {alg.__name__} ===")
-        for data_file in data_folder.glob("*.txt"):
-            print(f"File: {data_file.name}")
-            res = profile_algorithm(alg, data_file)
-            print(f"  wall_time   : {res['wall_time']:.6f}s")
-            print(f"  cpu_user    : {res['cpu_user']:.6f}s")
-            print(f"  cpu_system  : {res['cpu_system']:.6f}s")
-            print(f"  peak_mem_kb : {res['peak_mem_kib']:.2f} KiB")
-            print(f"  rss_mb      : {res['rss_mb']:.2f} MB\n")
-
-            # do csv
-            results_csv.append({
-                "algorithm": alg.__name__,
-                "file": data_file.name,
-                **res
-            })
-
-    # zapis do csv
-    csv_path = Path("profiling_results.csv")
-    with csv_path.open("w", newline="", encoding="utf-8") as f:
-        writer = csv.DictWriter(f, fieldnames=results_csv[0].keys())
-        writer.writeheader()
-        writer.writerows(results_csv)
+    for alg in algorithms:
+        print(f"=== Algorytm: {alg.__name__} ===")
+        for file_path in data_folder.glob("*.txt"):
+            profile_algorithm(alg, file_path)
 
 
 if __name__ == "__main__":
