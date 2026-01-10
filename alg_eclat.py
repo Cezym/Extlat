@@ -8,7 +8,12 @@ class EclatMiner(BaseMiner):
         self.frequent_itemsets = {}
 
     def find_frequent_itemsets(self):
-        vertical_data = TransactionLoader.to_vertical(self.dataset)
+
+        loader = TransactionLoader()
+        loader.transactions = self.dataset
+
+        vertical_data = loader.to_vertical()
+
 
         frequent_items = []
         for item, tids in vertical_data.items():
@@ -40,3 +45,21 @@ class EclatMiner(BaseMiner):
 
             if next_level_candidates:
                 self._explore_frequent_itemsets(new_itemset, next_level_candidates)
+
+
+if __name__ == "__main__":
+    # Symulacja danych: 4 transakcje
+    dummy_data = [
+        {1, 3, 4},
+        {2, 3, 5},
+        {1, 2, 3, 5},
+        {2, 5}
+    ]
+
+    # Ustawiamy support na 0.5 (czyli 50% -> min. 2 wystąpienia)
+    miner = EclatMiner(min_support=0.5, dataset=dummy_data)
+    results = miner.find_frequent_itemsets()
+
+    print(f"--- Wyniki dla danych testowych (Support: {miner.min_support_count}) ---")
+    for itemset, count in results.items():
+        print(f"Zbiór: {set(itemset)} | Liczba wystąpień: {count}")
