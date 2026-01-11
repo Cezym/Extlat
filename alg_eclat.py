@@ -10,13 +10,13 @@ class EclatMiner(BaseMiner):
     def find_frequent_itemsets(self):
 
         loader = TransactionLoader()
-        loader.transactions = self.dataset
 
-        vertical_data = loader.to_vertical()
+        self.dataset = loader.to_vertical(self.dataset)
+
 
 
         frequent_items = []
-        for item, tids in vertical_data.items():
+        for item, tids in self.dataset.items():
             if len(tids) >= self.min_support_count:
                 frequent_items.append((item, tids))
 
@@ -56,10 +56,10 @@ if __name__ == "__main__":
         {2, 5}
     ]
     loader = TransactionLoader()
-    loader.load(r"data/chess.txt")
+    data = loader.load(r"data/retail.txt")
 
     # Ustawiamy support na 0.5 (czyli 50% -> min. 2 wystąpienia)
-    miner = EclatMiner(min_support=0.2, dataset=loader.transactions)
+    miner = EclatMiner(min_support=0.2, dataset=data)
     results = miner.find_frequent_itemsets()
 
     print(f"--- Wyniki dla danych testowych (Support: {miner.min_support_count}) ---")
