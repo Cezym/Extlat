@@ -1,150 +1,123 @@
-from __future__ import annotations
-
 from typing import List, Set, Dict, FrozenSet, Tuple
 from base_miner import BaseMiner
+
+from bitarray import bitarray
+
 
 
 class AdvancedEclatMiner(BaseMiner):
     """
-    A feature‑rich implementation of the ECLAT frequent‑itemset miner.
+    Implementacja algorytmu Advanced Eclat wykorzystująca bibliotekę `bitarray`.
 
-    Parameters
-    ----------
-    min_support : float
-        Minimum support threshold expressed as a fraction of the total
-        number of transactions (e.g. 0.2 for 20%).
-    dataset : List[Set[int]]
-        The transaction database; each element is a set containing item IDs.
-    sort_items_by_support : bool, optional
-        If ``True`` (default) candidate items are sorted by their support count
-        in ascending order before recursion – this usually speeds up pruning.
-        Set to ``False`` if you want the original behaviour of sorting by item ID.
+    Zalety względem int (native Python):
+    - Jawna kontrola nad pamięcią (1 bit to fizycznie 1 bit w pamięci).
+    - Metody dedykowane do operacji na bitach.
 
-    Attributes
-    ----------
-    frequent_itemsets : Dict[FrozenSet[int], int]
-        Mapping from each discovered frequent itemset (as a frozenset) to its absolute support count.
+    Kluczowe zmiany:
+    1. Transpozycja: Używamy obiektu bitarray(length) zamiast int.
+    2. Operacje: Używamy operatora & (AND) na obiektach bitarray.
+    3. Zliczanie: Używamy metody .count() zamiast .bit_count().
     """
 
     def __init__(
-        self,
-        min_support: float,
-        dataset: List[Set[int]],
-        *,
-        sort_items_by_support: bool = True,
+            self,
+            min_support: float,
+            dataset: List[Set[int]],
+            *,
+            sort_items_by_support: bool = True,
     ) -> None:
         super().__init__(min_support, dataset)
         self.frequent_itemsets: Dict[FrozenSet[int], int] = {}
         self.sort_items_by_support = sort_items_by_support
+        # Musimy znać liczbę transakcji, aby zainicjować wektory o odpowiedniej długości
+        self.num_transactions = len(dataset)
 
-    # ----------------------------------------------------------------------
-    # Public API
-    # ----------------------------------------------------------------------
     def find_frequent_itemsets(self) -> Dict[FrozenSet[int], int]:
         """
-        Execute the ECLAT algorithm and return all frequent itemsets.
-
-        Returns
-        -------
-        Dict[FrozenSet[int], int]
-            Mapping from each frequent itemset to its support count.
+        Uruchamia algorytm Advanced Eclat (wersja bitarray).
         """
-        # 1 Convert the horizontal database into a vertical tid‑list.
-        vertical = self._build_vertical()
+        # Krok 1: Transformacja do formatu wertykalnego (Item -> bitarray)
 
-        # 2 Keep only items that meet the minimum support threshold.
-        candidate_items: List[Tuple[int, Set[int]]] = [
-            (item, tids) for item, tids in vertical.items()
-            if len(tids) >= self.min_support_count
-        ]
+        bit_vertical = self._build_vertical_bitsets()
 
-        # 3 Sort candidates – either by support or by item ID.
+        # Krok 2: Filtracja L1
+        candidate_items: List[Tuple[int, bitarray]] = []
+
+        for item, bitmask in bit_vertical.items():
+            # bitarray posiada metodę .count() zwracającą liczbę jedynek
+            support = bitmask.count()
+            if support >= self.min_support_count:
+                candidate_items.append((item, bitmask))
+
+        # Sortowanie (Least Frequent First lub wg ID)
         if self.sort_items_by_support:
-            candidate_items.sort(key=lambda x: len(x[1]))
+            candidate_items.sort(key=lambda x: x[1].count())
         else:
             candidate_items.sort(key=lambda x: x[0])
 
-        # 4 Recursively enumerate all frequent itemsets.
-        self._mine(prefix=[], items=candidate_items)
+        # Krok 3: Rekurencyjne przeszukiwanie (DFS)
+
+        self._mine_bitset(prefix=[], items=candidate_items)
+
         return self.frequent_itemsets
 
-    def pretty_print(self) -> None:
+    def _build_vertical_bitsets(self) -> Dict[int, bitarray]:
         """
-        Print the discovered frequent itemsets in a human‑readable form.
+        Tworzy bazę wertykalną używając obiektów bitarray.
+        """
+        vertical_bits: Dict[int, bitarray] = {}
 
-        The output is sorted by decreasing support, then lexicographically
-        by the itemset contents.
-        """
-        sorted_items = sorted(
-            self.frequent_itemsets.items(),
-            key=lambda kv: (-kv[1], tuple(sorted(kv[0])))
-        )
-        for itemset, count in sorted_items:
-            print(f"Itemset: {sorted(itemset)}  Support: {count}")
-
-    # ----------------------------------------------------------------------
-    # Internals
-    # ----------------------------------------------------------------------
-    def _build_vertical(self) -> Dict[int, Set[int]]:
-        """
-        Build the vertical tid‑list representation.
-
-        Returns
-        -------
-        Dict[int, Set[int]]
-            Mapping from an item to the set of transaction IDs containing it.
-        """
-        vertical: Dict[int, Set[int]] = {}
         for tid, transaction in enumerate(self.dataset):
             for item in transaction:
-                vertical.setdefault(item, set()).add(tid)
-        return vertical
+                # Jeśli widzimy produkt pierwszy raz, inicjalizujemy dla niego bitarray
+                if item not in vertical_bits:
+                    # Tworzymy wektor o długości równej liczbie transakcji
+                    ba = bitarray(self.num_transactions)
+                    ba.setall(0)  # Zerujemy wszystkie bity
+                    vertical_bits[item] = ba
 
-    def _mine(
-        self,
-        prefix: List[int],
-        items: List[Tuple[int, Set[int]]]
+                # Ustawiamy bit odpowiadający ID transakcji na 1
+                vertical_bits[item][tid] = 1
+
+        return vertical_bits
+
+    def _mine_bitset(
+            self,
+            prefix: List[int],
+            items: List[Tuple[int, bitarray]]
     ) -> None:
         """
-        Recursive depth‑first search that enumerates all frequent itemsets.
-
-        Parameters
-        ----------
-        prefix : List[int]
-            Current itemset being extended.
-        items : List[Tuple[int, Set[int]]]
-            Candidate items (item ID and its tid set) to be combined with the prefix.
+        Rekurencyjna procedura DFS na obiektach bitarray.
         """
-        for i, (curr_item, curr_tids) in enumerate(items):
-            # New frequent itemset
+        for i in range(len(items)):
+            curr_item, curr_mask = items[i]
+
+            # Zapisujemy wynik
             new_prefix = prefix + [curr_item]
-            support_count = len(curr_tids)
+            support_count = curr_mask.count()
             self.frequent_itemsets[frozenset(new_prefix)] = support_count
 
-            # Build candidates for the next recursion level
-            next_candidates: List[Tuple[int, Set[int]]] = []
+            next_candidates: List[Tuple[int, bitarray]] = []
 
             for j in range(i + 1, len(items)):
-                nxt_item, nxt_tids = items[j]
-                intersection = curr_tids & nxt_tids
-                if len(intersection) >= self.min_support_count:
-                    next_candidates.append((nxt_item, intersection))
+                nxt_item, nxt_mask = items[j]
 
-            # Recurse only if we have candidates to extend with
+                # Operacja bitowa AND na obiektach bitarray
+
+                intersection_mask = curr_mask & nxt_mask
+
+                # Sprawdzenie wsparcia
+                if intersection_mask.count() >= self.min_support_count:
+                    next_candidates.append((nxt_item, intersection_mask))
+
             if next_candidates:
-                # Keep the same ordering as before (by support or item ID)
-                if self.sort_items_by_support:
-                    next_candidates.sort(key=lambda x: len(x[1]))
-                else:
-                    next_candidates.sort(key=lambda x: x[0])
-                self._mine(prefix=new_prefix, items=next_candidates)
+                self._mine_bitset(prefix=new_prefix, items=next_candidates)
 
 
 # ----------------------------------------------------------------------
-# Demo / usage example
+# Przykład użycia
 # ----------------------------------------------------------------------
 if __name__ == "__main__":
-    # Dummy data – 4 transactions
     dummy_data = [
         {1, 3, 4},
         {2, 3, 5},
@@ -152,17 +125,18 @@ if __name__ == "__main__":
         {2, 5}
     ]
 
-    # Load a real file (uncomment if you have a dataset)
-    from data_manager import TransactionLoader
-    loader = TransactionLoader()
-    miner_dataset = loader.load(r"data/retail.txt")
+    print("--- Test Advanced Eclat (bitarray library) ---")
+    try:
+        miner = AdvancedEclatMiner(min_support=0.6, dataset=dummy_data)
+        results = miner.find_frequent_itemsets()
 
-    # For the demo we use the dummy data
-    miner = AdvancedEclatMiner(min_support=0.1, dataset=miner_dataset)
-    results = miner.find_frequent_itemsets()
+        sorted_results = sorted(
+            results.items(),
+            key=lambda kv: (-kv[1], tuple(sorted(kv[0])))
+        )
 
-    print(f"\n--- Results (Support threshold: {miner.min_support_count}) ---")
-    for itemset, count in sorted(
-        results.items(), key=lambda kv: (-kv[1], tuple(sorted(kv[0])))
-    ):
-        print(f"Itemset: {sorted(itemset)} | Support: {count}")
+        for itemset, count in sorted_results:
+            print(f"Itemset: {sorted(itemset)} | Support: {count}")
+
+    except ImportError as e:
+        print(e)
