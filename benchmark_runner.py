@@ -1,44 +1,45 @@
 import time
 import gc
+import tracemalloc
 import matplotlib.pyplot as plt
-from typing import Dict, List, Type
 import os
+from typing import Dict, List, Type
 
-# --- IMPORTY KLAS POMOCNICZYCH ---
+# --- IMPORTY KLAS BAZOWYCH ---
 from data_manager import TransactionLoader
 from base_miner import BaseMiner
 
-# --- IMPORTY TWOICH ALGORYTMÓW ---
+# --- IMPORTY TWOICH ALGORYTMÓW (Bezpośrednio) ---
+# Zakładamy, że te pliki istnieją i działają
 try:
     from alg_eclat import EclatMiner
     from alg_postdiffset import PostdiffsetMiner
     from alg_advanced_eclat import AdvancedEclatMiner
 except ImportError as e:
-    print(f"Ostrzeżenie: Nie znaleziono pliku algorytmu: {e}")
+    print(f"UWAGA: Nie znaleziono pliku z algorytmem: {e}")
 
-# --- IMPORTY BIBLIOTEKI FIM (Wrappery) ---
-# Zakładam, że masz zainstalowane: pip install fim
+# --- IMPORT BIBLIOTEKI FIM (Bezpośrednio) ---
 try:
-    from fim import apriori, eclat
+    import fim
 
     FIM_AVAILABLE = True
 except ImportError:
-    print("Ostrzeżenie: Biblioteka 'fim' nie jest zainstalowana. (pip install fim)")
+    print("UWAGA: Biblioteka 'fim' nie jest zainstalowana (pip install fim).")
     FIM_AVAILABLE = False
 
 
-# Definicje wrapperów FIM (wewnątrz pliku, żebyś nie musiał tworzyć osobnego, jeśli nie chcesz)
-class LibAprioriMiner(BaseMiner):
+# --- ADAPTERY DLA BIBLIOTEKI FIM ---
+# Niezbędne, aby ujednolicić interfejs (Klasa vs Funkcja) wewnątrz Benchmarkera
+class DirectFimApriori(BaseMiner):
     def find_frequent_itemsets(self):
-        # supp=-min_support_count (ujemna wartość oznacza liczbę wystąpień, a nie %)
-        results = apriori(self.dataset, supp=-self.min_support_count, report='s')
-        # fim zwraca listę krotek, my nic nie musimy z tym robić w benchmarku poza zmierzeniem czasu
+        # fim używa ujemnych wartości dla count (np. -10 oznacza min 10 wystąpień)
+        results = fim.apriori(self.dataset, supp=-self.min_support_count, report='s')
         return len(results)
 
 
-class LibEclatMiner(BaseMiner):
+class DirectFimEclat(BaseMiner):
     def find_frequent_itemsets(self):
-        results = eclat(self.dataset, supp=-self.min_support_count, report='s')
+        results = fim.eclat(self.dataset, supp=-self.min_support_count, report='s')
         return len(results)
 
 
@@ -46,128 +47,175 @@ class BenchmarkRunner:
     def __init__(self, algorithms: Dict[str, Type[BaseMiner]]):
         """
         Args:
-            algorithms: Słownik { "Nazwa": KlasaAlgorytmu }
+            algorithms: Słownik { "Nazwa na wykresie": KlasaAlgorytmu }
         """
         self.algorithms = algorithms
         self.results = {}
 
-    def measure_execution(self, algorithm_class: Type[BaseMiner], dataset: list[set[int]], min_support: float) -> float:
+    def measure_execution(self, algorithm_class: Type[BaseMiner], dataset: list[set[int]], min_support: float):
         """
-        Mierzy czas wykonania jednego algorytmu.
+        Mierzy czas (s) i szczytowe zużycie pamięci (MB).
         """
-        # Czyścimy pamięć przed testem
+        # 1. Sprzątanie pamięci przed testem (kluczowe dla dokładności)
         gc.collect()
 
-        # Inicjalizacja (czas tworzenia obiektu pomijamy lub wliczamy zależnie od potrzeb,
-        # tutaj wliczamy tylko find_frequent_itemsets)
+        # 2. Start śledzenia pamięci
+        tracemalloc.start()
+
+        # 3. Inicjalizacja algorytmu
+        # Tworzymy instancję klasy (np. PostdiffsetMiner lub DirectFimEclat)
         miner = algorithm_class(min_support, dataset)
 
+        # 4. Start pomiaru czasu
         start_time = time.time()
-        # Uruchomienie
+
+        # Wykonanie (szukanie zbiorów)
         miner.find_frequent_itemsets()
+
+        # 5. Stop pomiaru czasu
         end_time = time.time()
 
-        return end_time - start_time
+        # 6. Odczyt zużycia pamięci
+        _, peak_memory = tracemalloc.get_traced_memory()
+        tracemalloc.stop()
+
+        execution_time = end_time - start_time
+        peak_memory_mb = peak_memory / (1024 * 1024)  # Konwersja Bajty -> MB
+
+        return execution_time, peak_memory_mb
 
     def run_comparison(self, datasets: Dict[str, str], support_range: List[float]):
         """
-        Główna pętla testowa.
+        Główna pętla testująca: Datasets -> Algorithms -> Supports
         """
         loader = TransactionLoader()
         self.results = {}
 
         for data_name, data_path in datasets.items():
-            print(f"\n=== ZBIÓR DANYCH: {data_name} ===")
+            print(f"\n==========================================")
+            print(f" PRZETWARZANIE ZBIORU: {data_name}")
+            print(f" Plik: {data_path}")
+            print(f"==========================================")
 
-            # Wczytujemy dane RAZ dla wszystkich algorytmów
             if not os.path.exists(data_path):
-                print(f"Błąd: Plik {data_path} nie istnieje!")
+                print(f"BŁĄD: Plik nie istnieje!")
                 continue
 
+            # Wczytujemy dane RAZ (singleton loadera)
             current_dataset = loader.load(data_path)
-            print(f"Liczba transakcji: {len(current_dataset)}")
+            print(f"-> Załadowano {len(current_dataset)} transakcji.")
 
             self.results[data_name] = {}
 
             for algo_name, algo_class in self.algorithms.items():
-                print(f"\n>>> Testowanie: {algo_name}")
+                print(f"\n>>> Algorytm: {algo_name}")
                 self.results[data_name][algo_name] = {}
 
                 for support in support_range:
-                    print(f"    Support: {support} ... ", end="", flush=True)
+                    # Wyświetlanie postępu
+                    print(f"    MinSup: {support:<4} ... ", end="", flush=True)
+
                     try:
-                        exec_time = self.measure_execution(algo_class, current_dataset, support)
-                        self.results[data_name][algo_name][support] = exec_time
-                        print(f"{exec_time:.4f} s")
+                        exec_time, mem_peak = self.measure_execution(algo_class, current_dataset, support)
+
+                        # Zapis wyników
+                        self.results[data_name][algo_name][support] = {
+                            "time": exec_time,
+                            "memory": mem_peak
+                        }
+                        print(f"OK | Czas: {exec_time:.4f}s | RAM: {mem_peak:.2f}MB")
                     except Exception as e:
                         print(f"BŁĄD ({e})")
                         self.results[data_name][algo_name][support] = None
 
-    def plot_results(self):
+    def plot_results(self, metric="time"):
         """
-        Rysuje wykresy wyników.
+        Rysuje wykresy.
+        metric: 'time' lub 'memory'
         """
         if not self.results:
             print("Brak wyników do wyświetlenia.")
             return
 
-        for data_name, algo_results in self.results.items():
-            plt.figure(figsize=(12, 8))
+        # Konfiguracja etykiet
+        if metric == "time":
+            y_label = "Czas wykonania (sekundy)"
+            title_prefix = "Wydajność Czasowa"
+        else:
+            y_label = "Zużycie RAM (MB)"
+            title_prefix = "Zużycie Pamięci"
 
+        for data_name, algo_results in self.results.items():
+            plt.figure(figsize=(12, 7))
+
+            # Iteracja po algorytmach
             for algo_name, data_points in algo_results.items():
-                # Sortujemy punkty po supporcie malejąco
+                # Sortowanie punktów po supporcie (oś X)
+                # Sortujemy malejąco, żeby linie się ładnie łączyły
                 sorted_points = sorted(data_points.items(), key=lambda x: x[0], reverse=True)
 
-                supports = [p[0] for p in sorted_points if p[1] is not None]
-                times = [p[1] for p in sorted_points if p[1] is not None]
+                supports = []
+                values = []
+
+                for supp, res in sorted_points:
+                    if res is not None:
+                        supports.append(supp)
+                        values.append(res[metric])
 
                 if supports:
-                    # Styl linii: FIM przerywana, nasze ciągła
-                    linestyle = '--' if "Lib" in algo_name or "FIM" in algo_name else '-'
-                    marker = 'x' if "Lib" in algo_name or "FIM" in algo_name else 'o'
+                    # Stylizacja: FIM linią przerywaną, nasze ciągłą
+                    is_library = "FIM" in algo_name or "Lib" in algo_name
+                    line_style = '--' if is_library else '-'
+                    marker = 'x' if is_library else 'o'
 
-                    plt.plot(supports, times, marker=marker, linestyle=linestyle, label=algo_name, linewidth=2)
+                    plt.plot(supports, values, marker=marker, linestyle=line_style, label=algo_name, linewidth=2)
 
-            plt.title(f"Porównanie wydajności: {data_name}")
-            plt.xlabel("Minimum Support")
-            plt.ylabel("Czas wykonania (s)")
+            plt.title(f"{title_prefix}: {data_name}")
+            plt.xlabel("Minimum Support (im mniej, tym trudniej)")
+            plt.ylabel(y_label)
             plt.legend()
-            plt.grid(True, which="both", ls="-", alpha=0.5)
+            plt.grid(True, which="both", linestyle='--', alpha=0.7)
 
-            # Odwracamy oś X (od dużego supportu do małego - trudniejszego)
+            # Odwracamy oś X (startujemy od łatwego dużego supportu do trudnego małego)
             plt.gca().invert_xaxis()
+
             plt.tight_layout()
             plt.show()
 
 
-# --- KONFIGURACJA TESTÓW ---
+# --- KONFIGURACJA I URUCHOMIENIE ---
 if __name__ == "__main__":
-    # 1. Lista algorytmów do sprawdzenia
+    # 1. Definicja algorytmów do porównania
     algos_to_test = {
-        "My Eclat (Tidset)": EclatMiner,
+        # Twoje implementacje
+        "My Eclat": EclatMiner,
         "My Postdiffset": PostdiffsetMiner,
-        "My Advanced Eclat": AdvancedEclatMiner,
+        "My Adv. Eclat": AdvancedEclatMiner,
     }
 
-    # Dodajemy biblioteczne tylko jeśli są dostępne
+    # Dodajemy biblioteczne FIM (jeśli dostępne)
     if FIM_AVAILABLE:
-        algos_to_test["FIM Apriori"] = LibAprioriMiner
-        algos_to_test["FIM Eclat"] = LibEclatMiner
+        algos_to_test["FIM Apriori"] = DirectFimApriori
+        algos_to_test["FIM Eclat"] = DirectFimEclat
 
-    # 2. Definicja zbiorów danych
-    # Upewnij się, że pliki istnieją w folderze data/
+    # 2. Zbiory danych
     datasets_map = {
-        # "Chess (Dense)": "data/chess.txt",
-        "Retail (Sparse)": "data/retail.txt", # Odkomentuj jeśli masz
-        # "Mushroom": "data/mushroom.txt"       # Odkomentuj jeśli masz
+        #"Chess": "data/chess.txt",
+        "Retail": "data/retail.txt", # Odkomentuj jeśli masz ten plik
+        # "Mushroom": "data/mushroom.txt"
     }
 
-    # 3. Zakresy supportu do testów
-    # UWAGA: Dla FIM w Pythonie supporty mogą być bardzo niskie,
-    # ale dla implementacji w czystym Pythonie zacznij od wyższych (np. 0.6 - 0.9 dla Chess)
-    supports = [0.8]
+    # 3. Zakresy supportu (od łatwego do trudnego)
+    # Dla chess.txt: 0.9 (bardzo łatwe) -> 0.6 (trudniejsze)
+    supports = [0.1, 0.2, 0.3]
 
-    # 4. Uruchomienie
+    # 4. Uruchomienie benchmarka
     runner = BenchmarkRunner(algos_to_test)
     runner.run_comparison(datasets_map, supports)
-    runner.plot_results()
+
+    # 5. Generowanie wykresów
+    print("\nRysowanie wykresu czasu...")
+    runner.plot_results(metric="time")
+
+    print("Rysowanie wykresu pamięci...")
+    runner.plot_results(metric="memory")
