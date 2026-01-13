@@ -51,11 +51,20 @@ def profile_algorithm(
     object
         Whatever *algo_func* returned (e.g. a dict of frequent itemsets).
     """
+
+    def _get_frequency_of_dataset(dataset: list[set[int]]):
+        mean_len = round(sum([len(l) for l in dataset])/len(dataset))
+        return round(mean_len/40,2)
+
+
     print(f"=== Profil dla {data_path.name} ({algo_name}) ===")
 
     # 1️⃣ Load the data
     loader = TransactionLoader()
     dataset = loader.load(data_path)
+
+    min_support = _get_frequency_of_dataset(dataset)
+    print("Min support: ", min_support)
 
     # 2️⃣ Start measurement
     start_wall = time.perf_counter()
@@ -65,7 +74,10 @@ def profile_algorithm(
     cpu_user_start, cpu_system_start = t.user, t.system
 
     # 3️⃣ Run the algorithm
-    answer = algo_func(dataset)
+    if algo_name != "Apriori":
+        answer = algo_func(dataset, min_support)
+    else:
+        answer = algo_func(dataset, supp=min_support)
 
     # 4️⃣ Stop measurement
     current, peak = tracemalloc.get_traced_memory()
@@ -91,16 +103,18 @@ def profile_algorithm(
 # ----------------------------------------------------------------------
 # Helper wrappers – they convert the raw dataset into what each miner expects
 # ----------------------------------------------------------------------
-def run_eclat(dataset: list[set[int]]) -> dict[frozenset[int], int]:
+def run_eclat(dataset: list[set[int]], min_support: float=0.2) -> dict[frozenset[int], int]:
     """Instantiate and run the original ECLAT miner."""
-    miner = EclatMiner(min_support=0.2, dataset=dataset)
+    miner = EclatMiner(min_support=min_support, dataset=dataset)
     return miner.find_frequent_itemsets()
 
 
-def run_advanced_eclat(dataset: list[set[int]]) -> dict[frozenset[int], int]:
+def run_advanced_eclat(dataset: list[set[int]], min_support: float=0.2) -> dict[frozenset[int], int]:
     """Instantiate and run the new AdvancedEclat miner."""
-    miner = AdvancedEclatMiner(min_support=0.2, dataset=dataset)
+    miner = AdvancedEclatMiner(min_support=min_support, dataset=dataset)
     return miner.find_frequent_itemsets()
+
+
 
 
 # ----------------------------------------------------------------------
@@ -111,7 +125,7 @@ def main() -> None:
 
     # Define all algorithms – name + callable that accepts the *dataset*
     algorithms = [
-        ("Apriori", lambda ds: apriori(ds)),
+        ("Apriori", apriori),
         ("ECLAT", run_eclat),
         ("Advanced ECLAT", run_advanced_eclat),
     ]
