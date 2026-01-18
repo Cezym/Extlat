@@ -4,7 +4,7 @@ import psutil  # <--- ZMIANA: Biblioteka systemowa
 import threading  # <--- DO POMIARU W TLE
 import matplotlib.pyplot as plt
 import os
-from typing import Dict, List, Type
+from typing import Dict, List, Type, Set, Tuple
 
 # --- IMPORTY KLAS BAZOWYCH ---
 from data_manager import TransactionLoader
@@ -105,44 +105,73 @@ class BenchmarkRunner:
 
         return execution_time, peak_memory_mb
 
-    def run_comparison(self, datasets: Dict[str, str], support_range: List[float]):
-        loader = TransactionLoader()
+    @staticmethod
+    def compute_avg(results):
+        averages = {}
+
+        for data_name in results[0]:
+            averages[data_name] = {}
+            for algo_name in results[0][data_name]:
+                averages[data_name][algo_name] = {}
+                for support in results[0][data_name][algo_name]:
+                    times = []
+                    memories = []
+
+                    for i in results:
+                        val = results[i][data_name][algo_name][support]
+                        times.append(val["time"])
+                        memories.append(val["memory"])
+
+                    averages[data_name][algo_name][support] = {
+                        "time": sum(times) / len(times),
+                        "memory": sum(memories) / len(memories)
+                    }
+
+        return averages
+
+    def run_comparison(self, datasets_supports: Tuple[Tuple[Dict, List]], iter: int = 1):
         self.results = {}
+        for i in range(iter):
+            print(f"-=== Iteracja {i}/{iter-1} ===-")
+            self.results[i] = {}
+            for datasets, support_range in datasets_supports:
+                loader = TransactionLoader()
 
-        for data_name, data_path in datasets.items():
-            print(f"\n==========================================")
-            print(f" ZBIÓR: {data_name} ({data_path})")
-            print(f"==========================================")
+                for data_name, data_path in datasets.items():
+                    print(f"\n==========================================")
+                    print(f" ZBIÓR: {data_name} ({data_path})")
+                    print(f"==========================================")
 
-            if not os.path.exists(data_path):
-                print(f"BŁĄD: Plik nie istnieje!")
-                continue
+                    if not os.path.exists(data_path):
+                        print(f"BŁĄD: Plik nie istnieje!")
+                        continue
 
-            current_dataset = loader.load(data_path)
-            print(f"-> Załadowano {len(current_dataset)} transakcji.")
+                    current_dataset = loader.load(data_path)
+                    print(f"-> Załadowano {len(current_dataset)} transakcji.")
 
-            self.results[data_name] = {}
+                    self.results[i][data_name] = {}
 
-            for algo_name, algo_class in self.algorithms.items():
-                print(f"\n>>> Algorytm: {algo_name}")
-                self.results[data_name][algo_name] = {}
+                    for algo_name, algo_class in self.algorithms.items():
+                        print(f"\n>>> Algorytm: {algo_name}")
+                        self.results[i][data_name][algo_name] = {}
 
-                for support in support_range:
-                    print(f"    MinSup: {support:<4} ... ", end="", flush=True)
+                        for support in support_range:
+                            print(f"    MinSup: {support:<4} ... ", end="", flush=True)
 
-                    try:
-                        exec_time, mem_net_peak = self.measure_execution(algo_class, current_dataset, support)
+                            try:
+                                exec_time, mem_net_peak = self.measure_execution(algo_class, current_dataset, support)
 
-                        self.results[data_name][algo_name][support] = {
-                            "time": exec_time,
-                            "memory": mem_net_peak
-                        }
-                        print(f"OK | Czas: {exec_time:.4f}s | RAM (Net Peak): {mem_net_peak:.2f}MB")
-                    except Exception as e:
-                        print(f"BŁĄD ({e})")
-                        import traceback
-                        traceback.print_exc()
-                        self.results[data_name][algo_name][support] = None
+                                self.results[i][data_name][algo_name][support] = {
+                                    "time": exec_time,
+                                    "memory": mem_net_peak
+                                }
+                                print(f"OK | Czas: {exec_time:.4f}s | RAM (Net Peak): {mem_net_peak:.2f}MB")
+                            except Exception as e:
+                                print(f"BŁĄD ({e})")
+                                import traceback
+                                traceback.print_exc()
+                                self.results[i][data_name][algo_name][support] = None
+        self.results = self.compute_avg(self.results)
 
     def plot_results(self, metric="time"):
         if not self.results:
@@ -200,20 +229,23 @@ if __name__ == "__main__":
         algos_to_test["FIM Eclat"] = DirectFimEclat
 
     # 2. Dane
-    datasets_map = {
-        #"Chess": "data/chess.txt",
-        #"Retail": "data/retail.txt",
-        "Mushrooms": "data/mushrooms.txt",
-        #"Connect": "data/connect.txt",
+    datasets_rare_map = {
+        "Retail": "data/retail.txt",
+        "Kosarak": "data/kosarak.dat.txt",
+    }
 
+    datasets_dense_map = {
+        "Chess": "data/chess.txt",
+        "Mushrooms": "data/mushrooms.txt",
     }
 
     # 3. Supporty
-    supports = [0.7, 0.8, 0.9]
+    supports_rare = [i/10 for i in range(1, 10)]
+    supports_dense = [i/10 for i in range(7, 10)]
 
     # 4. Start
     runner = BenchmarkRunner(algos_to_test)
-    runner.run_comparison(datasets_map, supports)
+    runner.run_comparison(((datasets_rare_map, supports_rare),(datasets_dense_map, supports_dense)), 10)
 
     print("\nRysowanie wykresów...")
     runner.plot_results(metric="time")
