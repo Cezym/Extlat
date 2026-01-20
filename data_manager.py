@@ -1,6 +1,7 @@
 import pathlib
 from typing import Union, Dict, Set, List
 
+
 class TransactionLoader:
     _instance = None
 
@@ -33,7 +34,9 @@ class TransactionLoader:
                 try:
                     items = {int(tok) for tok in stripped.split()}
                 except ValueError as exc:
-                    raise ValueError(f"Non‑integer token on line {line_no} of '{p}'") from exc
+                    raise ValueError(
+                        f"Non‑integer token on line {line_no} of '{p}'"
+                    ) from exc
 
                 transactions.append(items)
 

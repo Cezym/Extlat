@@ -1,4 +1,3 @@
-
 """
 Profile the three frequent‑itemset mining algorithms.
 
@@ -21,11 +20,11 @@ import tracemalloc
 from pathlib import Path
 
 import psutil
-from fim import apriori
 
 # Local imports – adjust if your modules live elsewhere
 from alg_advanced_eclat import AdvancedEclatMiner
 from alg_eclat import EclatMiner
+from alg_postdiffset import PostdiffsetMiner
 from data_manager import TransactionLoader
 
 
@@ -53,33 +52,32 @@ def profile_algorithm(
     """
 
     def _get_frequency_of_dataset(dataset: list[set[int]]):
-        mean_len = round(sum([len(l) for l in dataset])/len(dataset))
-        return round(mean_len/40,2)
-
+        mean_len = round(sum([len(l) for l in dataset]) / len(dataset))
+        return round(mean_len / 40, 2)
 
     print(f"=== Profil dla {data_path.name} ({algo_name}) ===")
 
-    # 1️⃣ Load the data
+    # 1 Load the data
     loader = TransactionLoader()
     dataset = loader.load(data_path)
 
     min_support = _get_frequency_of_dataset(dataset)
     print("Min support: ", min_support)
 
-    # 2️⃣ Start measurement
+    # 2 Start measurement
     start_wall = time.perf_counter()
     tracemalloc.start()
 
     t = psutil.Process().cpu_times()
     cpu_user_start, cpu_system_start = t.user, t.system
 
-    # 3️⃣ Run the algorithm
+    # 3 Run the algorithm
     if algo_name != "Apriori":
         answer = algo_func(dataset, min_support)
     else:
         answer = algo_func(dataset, supp=min_support)
 
-    # 4️⃣ Stop measurement
+    # 4 Stop measurement
     current, peak = tracemalloc.get_traced_memory()
     tracemalloc.stop()
 
@@ -87,9 +85,9 @@ def profile_algorithm(
     t = psutil.Process().cpu_times()
     cpu_user_end, cpu_system_end = t.user, t.system
 
-    rss_mb = psutil.Process().memory_info().rss / 1024 ** 2
+    rss_mb = psutil.Process().memory_info().rss / 1024**2
 
-    # 5️⃣ Print results
+    # 5 Print results
     print(f"Answer          : {answer}")
     print(f"Wall‑time       : {end_wall - start_wall:.6f}s")
     print(f"CPU user time   : {cpu_user_end - cpu_user_start:.6f}s")
@@ -103,18 +101,28 @@ def profile_algorithm(
 # ----------------------------------------------------------------------
 # Helper wrappers – they convert the raw dataset into what each miner expects
 # ----------------------------------------------------------------------
-def run_eclat(dataset: list[set[int]], min_support: float=0.2) -> dict[frozenset[int], int]:
+def run_eclat(
+    dataset: list[set[int]], min_support: float = 0.2
+) -> dict[frozenset[int], int]:
     """Instantiate and run the original ECLAT miner."""
     miner = EclatMiner(min_support=min_support, dataset=dataset)
     return miner.find_frequent_itemsets()
 
 
-def run_advanced_eclat(dataset: list[set[int]], min_support: float=0.2) -> dict[frozenset[int], int]:
+def run_advanced_eclat(
+    dataset: list[set[int]], min_support: float = 0.2
+) -> dict[frozenset[int], int]:
     """Instantiate and run the new AdvancedEclat miner."""
     miner = AdvancedEclatMiner(min_support=min_support, dataset=dataset)
     return miner.find_frequent_itemsets()
 
 
+def run_postdiffset(
+    dataset: list[set[int]], min_support: float = 0.2
+) -> dict[frozenset[int], int]:
+    """Instantiate and run the new AdvancedEclat miner."""
+    miner = PostdiffsetMiner(min_support=min_support, dataset=dataset)
+    return miner.find_frequent_itemsets()
 
 
 # ----------------------------------------------------------------------
@@ -125,9 +133,10 @@ def main() -> None:
 
     # Define all algorithms – name + callable that accepts the *dataset*
     algorithms = [
-        ("Apriori", apriori),
+        # ("Apriori", apriori),
         ("ECLAT", run_eclat),
         ("Advanced ECLAT", run_advanced_eclat),
+        ("PostDiffSet", run_postdiffset),
     ]
 
     for algo_name, algo_func in algorithms:

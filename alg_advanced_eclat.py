@@ -4,7 +4,6 @@ from base_miner import BaseMiner
 from bitarray import bitarray
 
 
-
 class AdvancedEclatMiner(BaseMiner):
     """
     Implementacja algorytmu Advanced Eclat wykorzystująca bibliotekę `bitarray`.
@@ -20,11 +19,11 @@ class AdvancedEclatMiner(BaseMiner):
     """
 
     def __init__(
-            self,
-            min_support: float,
-            dataset: List[Set[int]],
-            *,
-            sort_items_by_support: bool = True,
+        self,
+        min_support: float,
+        dataset: List[Set[int]],
+        *,
+        sort_items_by_support: bool = True,
     ) -> None:
         super().__init__(min_support, dataset)
         self.frequent_itemsets: Dict[FrozenSet[int], int] = {}
@@ -82,9 +81,7 @@ class AdvancedEclatMiner(BaseMiner):
         return vertical_bits
 
     def _mine_bitset(
-            self,
-            prefix: List[int],
-            items: List[Tuple[int, bitarray]]
+        self, prefix: List[int], items: List[Tuple[int, bitarray]]
     ) -> None:
         """
         Rekurencyjna procedura DFS na obiektach bitarray.
@@ -118,12 +115,7 @@ class AdvancedEclatMiner(BaseMiner):
 # Przykład użycia
 # ----------------------------------------------------------------------
 if __name__ == "__main__":
-    dummy_data = [
-        {1, 3, 4},
-        {2, 3, 5},
-        {1, 2, 3, 5},
-        {2, 5}
-    ]
+    dummy_data = [{1, 3, 4}, {2, 3, 5}, {1, 2, 3, 5}, {2, 5}]
 
     print("--- Test Advanced Eclat (bitarray library) ---")
     try:
@@ -131,8 +123,7 @@ if __name__ == "__main__":
         results = miner.find_frequent_itemsets()
 
         sorted_results = sorted(
-            results.items(),
-            key=lambda kv: (-kv[1], tuple(sorted(kv[0])))
+            results.items(), key=lambda kv: (-kv[1], tuple(sorted(kv[0])))
         )
 
         for itemset, count in sorted_results:

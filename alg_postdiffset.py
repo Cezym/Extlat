@@ -44,7 +44,9 @@ class PostdiffsetMiner(BaseMiner):
                     self.frequent_itemsets[frozenset(new_itemset)] = new_support
 
                     # Pass intersection to next phase
-                    candidates_for_diffset.append((item_j, intersection_tids, new_support))
+                    candidates_for_diffset.append(
+                        (item_j, intersection_tids, new_support)
+                    )
 
             # [cite_start]KROK 2: Switch to Diffset Loop [cite: 472]
             if candidates_for_diffset:
@@ -71,14 +73,10 @@ class PostdiffsetMiner(BaseMiner):
             if next_level_candidates:
                 self._next_loops_diffset(new_prefix, next_level_candidates)
 
+
 if __name__ == "__main__":
     # Symulacja danych: 4 transakcje
-    dummy_data = [
-        {1, 3, 4},
-        {2, 3, 5},
-        {1, 2, 3, 5},
-        {2, 5}
-    ]
+    dummy_data = [{1, 3, 4}, {2, 3, 5}, {1, 2, 3, 5}, {2, 5}]
     loader = TransactionLoader()
     data = loader.load(r"data/chess.txt")
 

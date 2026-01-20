@@ -8,12 +8,9 @@ class EclatMiner(BaseMiner):
         self.frequent_itemsets = {}
 
     def find_frequent_itemsets(self):
-
         loader = TransactionLoader()
 
         self.dataset = loader.to_vertical(self.dataset)
-
-
 
         frequent_items = []
         for item, tids in self.dataset.items():
@@ -49,12 +46,7 @@ class EclatMiner(BaseMiner):
 
 if __name__ == "__main__":
     # Symulacja danych: 4 transakcje
-    dummy_data = [
-        {1, 3, 4},
-        {2, 3, 5},
-        {1, 2, 3, 5},
-        {2, 5}
-    ]
+    dummy_data = [{1, 3, 4}, {2, 3, 5}, {1, 2, 3, 5}, {2, 5}]
     loader = TransactionLoader()
     data = loader.load(r"data/chess.txt")
 
