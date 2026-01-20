@@ -1,16 +1,19 @@
 import time
 import gc
-import psutil  # <--- ZMIANA: Biblioteka systemowa
-import threading  # <--- DO POMIARU W TLE
+from pathlib import Path
+
+import psutil
+import threading
 import matplotlib.pyplot as plt
 import os
-from typing import Dict, List, Type, Set, Tuple
+from typing import Dict, List, Type, Tuple
 
 # --- IMPORTY KLAS BAZOWYCH ---
 from data_manager import TransactionLoader
 from base_miner import BaseMiner
+import pandas as pd
 
-# --- IMPORTY TWOICH ALGORYTMÓW ---
+# --- IMPORTY ALGORYTMÓW ---
 try:
     from alg_eclat import EclatMiner
     from alg_postdiffset import PostdiffsetMiner
@@ -31,22 +34,30 @@ except ImportError:
 # --- ADAPTERY DLA BIBLIOTEKI FIM ---
 class DirectFimApriori(BaseMiner):
     def find_frequent_itemsets(self):
-        results = fim.apriori(self.dataset, supp=-self.min_support_count, report='s')
+        results = fim.apriori(self.dataset, supp=-self.min_support_count, report="s")
         return len(results)
 
 
 class DirectFimEclat(BaseMiner):
     def find_frequent_itemsets(self):
-        results = fim.eclat(self.dataset, supp=-self.min_support_count, report='s')
+        results = fim.eclat(self.dataset, supp=-self.min_support_count, report="s")
         return len(results)
 
 
 class BenchmarkRunner:
     def __init__(self, algorithms: Dict[str, Type[BaseMiner]]):
         self.algorithms = algorithms
-        self.results = {}
+        self.results = pd.DataFrame(
+            columns=["iteration", "dataset", "algorithm", "support", "time", "memory"]
+        )
+        self.results_avg: pd.DataFrame
 
-    def measure_execution(self, algorithm_class: Type[BaseMiner], dataset: list[set[int]], min_support: float):
+    def measure_execution(
+        self,
+        algorithm_class: Type[BaseMiner],
+        dataset: list[set[int]],
+        min_support: float,
+    ):
         """
         Mierzy czas oraz RZECZYWISTE zużycie RAM całego procesu (w tym C extensions).
         Używa osobnego wątku do monitorowania szczytowego zużycia (Peak RSS).
@@ -57,7 +68,9 @@ class BenchmarkRunner:
 
         # 2. Pobranie procesu i pamięci początkowej (Baseline)
         process = psutil.Process(os.getpid())
-        baseline_mem = process.memory_info().rss  # RSS = Resident Set Size (Fizyczna pamięć)
+        baseline_mem = (
+            process.memory_info().rss
+        )  # RSS = Resident Set Size (Fizyczna pamięć)
 
         # Zmienne współdzielone z wątkiem monitorującym
         memory_stats = {"peak": baseline_mem}
@@ -99,82 +112,81 @@ class BenchmarkRunner:
         peak_memory_bytes = memory_stats["peak"] - baseline_mem
 
         # Zabezpieczenie: Jeśli algorytm był super szybki lub zwolnił pamięć, wynik może być < 0
-        if peak_memory_bytes < 0: peak_memory_bytes = 0
+        if peak_memory_bytes < 0:
+            peak_memory_bytes = 0
 
         peak_memory_mb = peak_memory_bytes / (1024 * 1024)  # Konwersja na MB
 
         return execution_time, peak_memory_mb
 
-    @staticmethod
-    def compute_avg(results):
-        averages = {}
+    def run_comparison(
+        self,
+        datasets_supports: Tuple[Tuple[Dict, List]],
+        output_file_path: str | Path,
+        iter: int = 1,
+    ):
+        for i in range(1, iter + 1):
+            print(f"-=== Iteracja {i}/{iter} ===-")
+            loader = TransactionLoader()
 
-        for data_name in results[0]:
-            averages[data_name] = {}
-            for algo_name in results[0][data_name]:
-                averages[data_name][algo_name] = {}
-                for support in results[0][data_name][algo_name]:
-                    times = []
-                    memories = []
-
-                    for i in results:
-                        val = results[i][data_name][algo_name][support]
-                        times.append(val["time"])
-                        memories.append(val["memory"])
-
-                    averages[data_name][algo_name][support] = {
-                        "time": sum(times) / len(times),
-                        "memory": sum(memories) / len(memories)
-                    }
-
-        return averages
-
-    def run_comparison(self, datasets_supports: Tuple[Tuple[Dict, List]], iter: int = 1):
-        self.results = {}
-        for i in range(iter):
-            print(f"-=== Iteracja {i}/{iter-1} ===-")
-            self.results[i] = {}
             for datasets, support_range in datasets_supports:
-                loader = TransactionLoader()
-
                 for data_name, data_path in datasets.items():
-                    print(f"\n==========================================")
+                    print("\n==========================================")
                     print(f" ZBIÓR: {data_name} ({data_path})")
-                    print(f"==========================================")
+                    print("==========================================")
 
                     if not os.path.exists(data_path):
-                        print(f"BŁĄD: Plik nie istnieje!")
+                        print("BŁĄD: Plik nie istnieje!")
                         continue
 
                     current_dataset = loader.load(data_path)
                     print(f"-> Załadowano {len(current_dataset)} transakcji.")
 
-                    self.results[i][data_name] = {}
-
                     for algo_name, algo_class in self.algorithms.items():
                         print(f"\n>>> Algorytm: {algo_name}")
-                        self.results[i][data_name][algo_name] = {}
 
                         for support in support_range:
                             print(f"    MinSup: {support:<4} ... ", end="", flush=True)
 
                             try:
-                                exec_time, mem_net_peak = self.measure_execution(algo_class, current_dataset, support)
+                                exec_time, mem_net_peak = self.measure_execution(
+                                    algo_class, current_dataset, support
+                                )
 
-                                self.results[i][data_name][algo_name][support] = {
+                                new_row = {
+                                    "iteration": i,
+                                    "dataset": data_name,
+                                    "algorithm": algo_name,
+                                    "support": support,
                                     "time": exec_time,
-                                    "memory": mem_net_peak
+                                    "memory": mem_net_peak,
                                 }
-                                print(f"OK | Czas: {exec_time:.4f}s | RAM (Net Peak): {mem_net_peak:.2f}MB")
+
+                                self.results.loc[len(self.results)] = new_row
+                                print(
+                                    f"OK | Czas: {exec_time:.4f}s | RAM (Net Peak): {mem_net_peak:.2f}MB"
+                                )
                             except Exception as e:
                                 print(f"BŁĄD ({e})")
                                 import traceback
+
                                 traceback.print_exc()
-                                self.results[i][data_name][algo_name][support] = None
-        self.results = self.compute_avg(self.results)
+
+        # Save the DataFrame to CSV, creating necessary directories if they don't exist
+        output_dir = os.path.dirname(output_file_path)
+        if not os.path.exists(output_dir):
+            os.makedirs(output_dir)
+
+        self.results.to_csv(output_file_path, index=False)
+        self.results_avg = self.results.groupby(
+            ["dataset", "algorithm", "support"], as_index=False
+        ).agg(
+            time=("time", "mean"),
+            memory=("memory", "mean"),
+        )
 
     def plot_results(self, metric="time"):
-        if not self.results:
+        if self.results_avg.empty:
             print("Brak wyników do wyświetlenia.")
             return
 
@@ -185,32 +197,34 @@ class BenchmarkRunner:
             y_label = "Przyrost RAM (MB)"
             title_prefix = "Zużycie Pamięci (Net Peak)"
 
-        for data_name, algo_results in self.results.items():
+        for data_name, algo_results in self.results_avg.groupby("dataset"):
             plt.figure(figsize=(12, 7))
 
-            for algo_name, data_points in algo_results.items():
-                sorted_points = sorted(data_points.items(), key=lambda x: x[0], reverse=True)
+            for algo_name, data_points in algo_results.groupby("algorithm"):
+                sorted_points = data_points.sort_values(by="support", ascending=False)
 
-                supports = []
-                values = []
-
-                for supp, res in sorted_points:
-                    if res is not None:
-                        supports.append(supp)
-                        values.append(res[metric])
+                supports = sorted_points["support"].tolist()
+                values = sorted_points[metric].tolist()
 
                 if supports:
                     is_library = "FIM" in algo_name or "Lib" in algo_name
-                    line_style = '--' if is_library else '-'
-                    marker = 'x' if is_library else 'o'
+                    line_style = "--" if is_library else "-"
+                    marker = "x" if is_library else "o"
 
-                    plt.plot(supports, values, marker=marker, linestyle=line_style, label=algo_name, linewidth=2)
+                    plt.plot(
+                        supports,
+                        values,
+                        marker=marker,
+                        linestyle=line_style,
+                        label=algo_name,
+                        linewidth=2,
+                    )
 
             plt.title(f"{title_prefix}: {data_name}")
             plt.xlabel("Minimum Support")
             plt.ylabel(y_label)
             plt.legend()
-            plt.grid(True, which="both", linestyle='--', alpha=0.7)
+            plt.grid(True, which="both", linestyle="--", alpha=0.7)
             plt.gca().invert_xaxis()
             plt.tight_layout()
             plt.show()
@@ -240,12 +254,16 @@ if __name__ == "__main__":
     }
 
     # 3. Supporty
-    supports_rare = [i/10 for i in range(1, 10)]
-    supports_dense = [i/10 for i in range(7, 10)]
+    supports_rare = [i / 10 for i in range(1, 10)]
+    supports_dense = [i / 10 for i in range(7, 10)]
 
     # 4. Start
     runner = BenchmarkRunner(algos_to_test)
-    runner.run_comparison(((datasets_rare_map, supports_rare),(datasets_dense_map, supports_dense)), 10)
+    runner.run_comparison(
+        ((datasets_rare_map, supports_rare), (datasets_dense_map, supports_dense)),
+        "results/results.csv",
+        10,
+    )
 
     print("\nRysowanie wykresów...")
     runner.plot_results(metric="time")
