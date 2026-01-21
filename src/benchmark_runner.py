@@ -107,7 +107,7 @@ class BenchmarkRunner:
         self,
         datasets_config: List[Dict[str , Any]],
         output_file_path: str | Path,
-        iter: int = 1,
+        iteration_num: int = 1,
         log_file_path: str | Path = None,
     ):
 
@@ -118,9 +118,9 @@ class BenchmarkRunner:
             logger = logging.getLogger(__name__)
             logger.addHandler(file_handler)
 
-        for i in range(1, iter + 1):
+        for i in range(1, iteration_num + 1):
             if log_file_path:
-                logger.info(f"-=== Iteracja {i}/{iter} ===-")
+                logger.info(f"-=== Iteracja {i}/{iteration_num} ===-")
 
             loader = TransactionLoader()
 

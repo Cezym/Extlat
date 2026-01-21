@@ -64,7 +64,7 @@ def test_run_comparison(tmp_path):
     runner.run_comparison(
         datasets_config=yaml.safe_load(config_path.read_text()),
         output_file_path=str(output_csv),
-        iter=1,
+        iteration_num=1,
         log_file_path=None,
     )
 
