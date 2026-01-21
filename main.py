@@ -83,7 +83,6 @@ def main():
     # Utworzenie folderów do figures
     os.makedirs(Path(args.figures_path), exist_ok=True)
 
-
     # Utworzenie folderów do pliku log
     os.makedirs(Path(args.log_file).parent, exist_ok=True)
 
@@ -91,7 +90,7 @@ def main():
     config = load_config(args.input_config)
 
     # Algorytmy do testowania
-    algos_to_test: Dict[str|Type[BaseMiner]] = {
+    algos_to_test: Dict[str | Type[BaseMiner]] = {
         "My Eclat": EclatMiner,
         "My Postdiffset": PostdiffsetMiner,
         "My Adv. Eclat": AdvancedEclatMiner,
@@ -108,8 +107,9 @@ def main():
     )
 
     print("\nRysowanie wykresów...")
-    runner.plot_results(metric="time", figures_path = args.figures_path)
-    runner.plot_results(metric="memory", figures_path = args.figures_path)
+    runner.plot_results(metric="time", figures_path=args.figures_path)
+    runner.plot_results(metric="memory", figures_path=args.figures_path)
+
 
 if __name__ == "__main__":
     main()

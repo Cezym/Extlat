@@ -1,7 +1,7 @@
 import time
 import gc
 from pathlib import Path
-
+import pandas as pd
 import psutil
 import threading
 import matplotlib.pyplot as plt
@@ -15,7 +15,6 @@ logging.basicConfig(level=logging.INFO)
 # --- IMPORTY KLAS BAZOWYCH ---
 from src.data_manager import TransactionLoader
 from src.base_miner import BaseMiner
-import pandas as pd
 
 # --- IMPORTY ALGORYTMÓW ---
 try:
@@ -256,5 +255,7 @@ class BenchmarkRunner:
             plt.gca().invert_xaxis()
             plt.tight_layout()
             if figures_path:
-                plt.savefig(fname=Path(figures_path) / str(data_name.lower() + "_" + metric))
+                plt.savefig(
+                    fname=Path(figures_path) / str(data_name.lower() + "_" + metric)
+                )
             plt.show()
