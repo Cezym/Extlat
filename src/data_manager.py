@@ -6,18 +6,12 @@ class TransactionLoader:
     _instance = None
 
     def __new__(cls):
-        """
-        Wzorzec Singleton.
-        Gwarantuje, że zawsze zwracany jest ten sam obiekt loadera.
-        """
         if cls._instance is None:
             cls._instance = super(TransactionLoader, cls).__new__(cls)
         return cls._instance
 
     def load(self, path: Union[str, pathlib.Path]) -> List[Set[int]]:
-        """
-        Wczytuje plik i zwraca listę transakcji.
-        """
+
         p = pathlib.Path(path)
 
         if not p.is_file():
@@ -43,9 +37,7 @@ class TransactionLoader:
         return transactions
 
     def to_vertical(self, dataset: List[Set[int]]) -> Dict[int, Set[int]]:
-        """
-        Pobiera dataset, konwertuje go na format wertykalny i zwraca wynik.
-        """
+
         vertical: Dict[int, Set[int]] = {}
         for tid, trans in enumerate(dataset):
             for item in trans:

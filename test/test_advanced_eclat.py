@@ -1,6 +1,6 @@
 import pytest
 
-# Import only if bitarray is available - otherwise skip the whole module.
+
 try:
     from src.alg_advanced_eclat import AdvancedEclatMiner
 except Exception:

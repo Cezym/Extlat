@@ -45,12 +45,11 @@ class EclatMiner(BaseMiner):
 
 
 if __name__ == "__main__":
-    # Symulacja danych: 4 transakcje
+    # Tesotwe uruchomienie
     dummy_data = [{1, 3, 4}, {2, 3, 5}, {1, 2, 3, 5}, {2, 5}]
     loader = TransactionLoader()
     data = loader.load(r"data/chess.txt")
 
-    # Ustawiamy support na 0.5 (czyli 50% -> min. 2 wystąpienia)
     miner = EclatMiner(min_support=0.8, dataset=data)
     results = miner.find_frequent_itemsets()
 

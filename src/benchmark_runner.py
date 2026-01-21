@@ -9,7 +9,6 @@ import os
 from typing import Dict, List, Type, Any
 import logging
 
-# Konfiguracja logowania
 logging.basicConfig(level=logging.INFO)
 
 # --- IMPORTY KLAS BAZOWYCH ---
@@ -61,63 +60,46 @@ class BenchmarkRunner:
         dataset: list[set[int]],
         min_support: float,
     ):
-        """
-        Mierzy czas oraz RZECZYWISTE zużycie RAM całego procesu (w tym C extensions).
-        Używa osobnego wątku do monitorowania szczytowego zużycia (Peak RSS).
-        """
-        # 1. Sprzątanie przed testem
-        gc.collect()
-        time.sleep(0.2)  # Krótka pauza dla stabilizacji systemu
 
-        # 2. Pobranie procesu i pamięci początkowej (Baseline)
+        gc.collect()
+        time.sleep(0.2)  #
+
+
         process = psutil.Process(os.getpid())
         baseline_mem = (
             process.memory_info().rss
-        )  # RSS = Resident Set Size (Fizyczna pamięć)
+        )
 
-        # Zmienne współdzielone z wątkiem monitorującym
         memory_stats = {"peak": baseline_mem}
         stop_event = threading.Event()
 
-        # 3. Definicja funkcji monitorującej (działa w tle)
         def monitor_memory():
             while not stop_event.is_set():
-                # Pobieramy aktualne zużycie
                 current_mem = process.memory_info().rss
-                # Aktualizujemy szczyt, jeśli jest wyższy
                 if current_mem > memory_stats["peak"]:
                     memory_stats["peak"] = current_mem
-                # Próbkujemy co 1ms (bardzo często, żeby złapać "szpilki" pamięciowe)
                 time.sleep(0.001)
 
-        # 4. Start wątku monitorującego
         monitor_thread = threading.Thread(target=monitor_memory)
         monitor_thread.start()
 
-        # 5. Uruchomienie algorytmu (Główny pomiar)
         start_time = time.time()
         try:
-            # Tworzenie instancji i uruchomienie
             miner = algorithm_class(min_support, dataset)
             miner.find_frequent_itemsets()
         finally:
-            # Zatrzymujemy monitorowanie niezależnie od błędów
             stop_event.set()
             monitor_thread.join()
 
         end_time = time.time()
 
-        # 6. Obliczenia
         execution_time = end_time - start_time
-
-        # Net Memory Usage = Szczyt - Pamięć Bazowa (ile algorytm 'dodał' do procesu)
         peak_memory_bytes = memory_stats["peak"] - baseline_mem
 
-        # Zabezpieczenie: Jeśli algorytm był super szybki lub zwolnił pamięć, wynik może być < 0
         if peak_memory_bytes < 0:
             peak_memory_bytes = 0
 
-        peak_memory_mb = peak_memory_bytes / (1024 * 1024)  # Konwersja na MB
+        peak_memory_mb = peak_memory_bytes / (1024 * 1024)  # MB
 
         return execution_time, peak_memory_mb
 
@@ -128,7 +110,7 @@ class BenchmarkRunner:
         iter: int = 1,
         log_file_path: str | Path = None,
     ):
-        # Konfiguracja loggera jeśli podano ścieżkę do pliku logu
+
         if log_file_path:
             file_handler = logging.FileHandler(log_file_path)
             formatter = logging.Formatter("%(asctime)s - %(levelname)s - %(message)s")
@@ -199,7 +181,6 @@ class BenchmarkRunner:
                             if log_file_path:
                                 logger.error(error_traceback)
 
-        # Save the DataFrame to CSV, creating necessary directories if they don't exist
         output_dir = os.path.dirname(output_file_path)
         if not os.path.exists(output_dir):
             os.makedirs(output_dir)

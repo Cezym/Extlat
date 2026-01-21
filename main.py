@@ -76,17 +76,13 @@ def main():
 
     args = parser.parse_args()
 
-    # Utworzenie folderów do results
+
     os.makedirs(Path(args.results_file).parent, exist_ok=True)
-    # Utworzenie folderów do results_avg
     os.makedirs(Path(args.results_avg_file).parent, exist_ok=True)
-    # Utworzenie folderów do figures
     os.makedirs(Path(args.figures_path), exist_ok=True)
 
-    # Utworzenie folderów do pliku log
     os.makedirs(Path(args.log_file).parent, exist_ok=True)
 
-    # Załadowanie konfiguracji datasetów
     config = load_config(args.input_config)
 
     # Algorytmy do testowania
@@ -100,7 +96,6 @@ def main():
         algos_to_test["FIM Apriori"] = DirectFimApriori
         algos_to_test["FIM Eclat"] = DirectFimEclat
 
-    # Uruchomienie benchmark runnera
     runner = BenchmarkRunner(algos_to_test)
     runner.run_comparison(
         config, args.results_file, args.iterations, log_file_path=args.log_file
