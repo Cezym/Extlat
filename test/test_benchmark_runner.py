@@ -1,7 +1,7 @@
 import pandas as pd
 import pytest
 
-from base_miner import BaseMiner
+from src.base_miner import BaseMiner
 
 # Import the BenchmarkRunner - skip if dependencies are missing.
 try:

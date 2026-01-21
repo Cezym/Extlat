@@ -123,7 +123,7 @@ class BenchmarkRunner:
 
     def run_comparison(
         self,
-        datasets_config: List[Dict[str | Any]],
+        datasets_config: List[Dict[str , Any]],
         output_file_path: str | Path,
         iter: int = 1,
         log_file_path: str | Path = None,
