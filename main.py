@@ -1,149 +1,97 @@
-"""
-Profile the three frequent‑itemset mining algorithms.
-
-*  fim.apriori          – classic Apriori implementation (FIM library)
-*  alg_eclat.EclatMiner – original ECLAT implementation you already have
-*  alg_advanced_eclat.AdvancedEclatMiner – new, feature‑rich version
-
-The script measures:
-    • wall time
-    • CPU user / system time
-    • peak memory (tracemalloc)
-    • RSS of the current process
-
-All algorithms are wrapped in a small helper that accepts the *dataset* as its only argument,
-so you can add or remove miners without touching the profiling logic.
-"""
-
-import time
-import tracemalloc
+import argparse
+import datetime
+import os
 from pathlib import Path
 
-import psutil
-
-# Local imports – adjust if your modules live elsewhere
 from alg_advanced_eclat import AdvancedEclatMiner
 from alg_eclat import EclatMiner
 from alg_postdiffset import PostdiffsetMiner
-from data_manager import TransactionLoader
+from benchmark_runner import (
+    BenchmarkRunner,
+    FIM_AVAILABLE,
+    DirectFimApriori,
+    DirectFimEclat,
+)
+import yaml
 
 
-def profile_algorithm(
-    algo_func,
-    algo_name: str,
-    data_path: Path,
-) -> object:
-    """
-    Run *algo_func* on the dataset located at *data_path* and print profiling data.
-
-    Parameters
-    ----------
-    algo_func : Callable[[List[Set[int]]], Any]
-        Function that takes a list of transaction sets and returns an answer.
-    algo_name : str
-        Human‑readable name used in the output header.
-    data_path : Path
-        Path to the file containing the transactions.
-
-    Returns
-    -------
-    object
-        Whatever *algo_func* returned (e.g. a dict of frequent itemsets).
-    """
-
-    def _get_frequency_of_dataset(dataset: list[set[int]]):
-        mean_len = round(sum([len(l) for l in dataset]) / len(dataset))
-        return round(mean_len / 40, 2)
-
-    print(f"=== Profil dla {data_path.name} ({algo_name}) ===")
-
-    # 1 Load the data
-    loader = TransactionLoader()
-    dataset = loader.load(data_path)
-
-    min_support = _get_frequency_of_dataset(dataset)
-    print("Min support: ", min_support)
-
-    # 2 Start measurement
-    start_wall = time.perf_counter()
-    tracemalloc.start()
-
-    t = psutil.Process().cpu_times()
-    cpu_user_start, cpu_system_start = t.user, t.system
-
-    # 3 Run the algorithm
-    if algo_name != "Apriori":
-        answer = algo_func(dataset, min_support)
-    else:
-        answer = algo_func(dataset, supp=min_support)
-
-    # 4 Stop measurement
-    current, peak = tracemalloc.get_traced_memory()
-    tracemalloc.stop()
-
-    end_wall = time.perf_counter()
-    t = psutil.Process().cpu_times()
-    cpu_user_end, cpu_system_end = t.user, t.system
-
-    rss_mb = psutil.Process().memory_info().rss / 1024**2
-
-    # 5 Print results
-    print(f"Answer          : {answer}")
-    print(f"Wall‑time       : {end_wall - start_wall:.6f}s")
-    print(f"CPU user time   : {cpu_user_end - cpu_user_start:.6f}s")
-    print(f"CPU system time : {cpu_system_end - cpu_system_start:.6f}s")
-    print(f"Peak memory     : {peak / 1024:.2f} KiB (tracemalloc)")
-    print(f"RSS process     : {rss_mb:.2f} MB\n")
-
-    return answer
+def load_config(config_path):
+    with open(config_path, "r") as file:
+        config = yaml.safe_load(file)
+    return config
 
 
-# ----------------------------------------------------------------------
-# Helper wrappers – they convert the raw dataset into what each miner expects
-# ----------------------------------------------------------------------
-def run_eclat(
-    dataset: list[set[int]], min_support: float = 0.2
-) -> dict[frozenset[int], int]:
-    """Instantiate and run the original ECLAT miner."""
-    miner = EclatMiner(min_support=min_support, dataset=dataset)
-    return miner.find_frequent_itemsets()
+def main():
+    parser = argparse.ArgumentParser(
+        description="Benchmark Runner for Frequent Itemset Mining Algorithms"
+    )
 
+    # Results file paths
+    parser.add_argument(
+        "--results_file",
+        type=str,
+        default="results/results.csv",
+        help="Path to save the detailed results in CSV format",
+    )
+    parser.add_argument(
+        "--results_avg_file",
+        type=str,
+        default="results/average_results.csv",
+        help="Path to save the averaged results in CSV format",
+    )
 
-def run_advanced_eclat(
-    dataset: list[set[int]], min_support: float = 0.2
-) -> dict[frozenset[int], int]:
-    """Instantiate and run the new AdvancedEclat miner."""
-    miner = AdvancedEclatMiner(min_support=min_support, dataset=dataset)
-    return miner.find_frequent_itemsets()
+    # Number of iterations
+    parser.add_argument(
+        "--iterations",
+        type=int,
+        default=1,
+        help="Number of times to run each algorithm on the dataset (default: 1)",
+    )
 
+    # Input configuration
+    parser.add_argument(
+        "--input_config",
+        type=str,
+        default="configs/datasets_config.yaml",
+        help="Path to the input configuration YAML file",
+    )
 
-def run_postdiffset(
-    dataset: list[set[int]], min_support: float = 0.2
-) -> dict[frozenset[int], int]:
-    """Instantiate and run the new AdvancedEclat miner."""
-    miner = PostdiffsetMiner(min_support=min_support, dataset=dataset)
-    return miner.find_frequent_itemsets()
+    # Log file path
+    parser.add_argument(
+        "--log_file",
+        type=str,
+        default=f"logs/benchmark-{str(datetime.datetime.now()).replace(' ', '_').replace(':', '.')}.log",
+        help="Path to save the output prints in log format",
+    )
 
+    args = parser.parse_args()
 
-# ----------------------------------------------------------------------
-# Main routine
-# ----------------------------------------------------------------------
-def main() -> None:
-    data_folder = Path("data")
+    # Utworzenie folderów do pliku log
+    os.makedirs(Path(args.log_file).parent, exist_ok=True)
 
-    # Define all algorithms – name + callable that accepts the *dataset*
-    algorithms = [
-        # ("Apriori", apriori),
-        ("ECLAT", run_eclat),
-        ("Advanced ECLAT", run_advanced_eclat),
-        ("PostDiffSet", run_postdiffset),
-    ]
+    # Załadowanie konfiguracji datasetów
+    config = load_config(args.input_config)
 
-    for algo_name, algo_func in algorithms:
-        print(f"=== Algorytm: {algo_name} ===")
-        # The original script only processed retail.txt – keep that behaviour
-        for file_path in data_folder.glob("*.txt"):
-            profile_algorithm(algo_func, algo_name, file_path)
+    # Algorytmy do testowania
+    algos_to_test = {
+        "My Eclat": EclatMiner,
+        "My Postdiffset": PostdiffsetMiner,
+        "My Adv. Eclat": AdvancedEclatMiner,
+    }
+
+    if FIM_AVAILABLE:
+        algos_to_test["FIM Apriori"] = DirectFimApriori
+        algos_to_test["FIM Eclat"] = DirectFimEclat
+
+    # Uruchomienie benchmark runnera
+    runner = BenchmarkRunner(algos_to_test)
+    runner.run_comparison(
+        config, args.results_file, args.iterations, log_file_path=args.log_file
+    )
+
+    print("\nRysowanie wykresów...")
+    runner.plot_results(metric="time")
+    runner.plot_results(metric="memory")
 
 
 if __name__ == "__main__":

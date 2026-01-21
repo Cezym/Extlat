@@ -6,7 +6,11 @@ import psutil
 import threading
 import matplotlib.pyplot as plt
 import os
-from typing import Dict, List, Type, Tuple
+from typing import Dict, List, Type, Any
+import logging
+
+# Konfiguracja logowania
+logging.basicConfig(level=logging.INFO)
 
 # --- IMPORTY KLAS BAZOWYCH ---
 from data_manager import TransactionLoader
@@ -19,7 +23,7 @@ try:
     from alg_postdiffset import PostdiffsetMiner
     from alg_advanced_eclat import AdvancedEclatMiner
 except ImportError as e:
-    print(f"UWAGA: Nie znaleziono pliku z algorytmem: {e}")
+    logging.warning(f"UWAGA: Nie znaleziono pliku z algorytmem: {e}")
 
 # --- IMPORT BIBLIOTEKI FIM ---
 try:
@@ -27,7 +31,7 @@ try:
 
     FIM_AVAILABLE = True
 except ImportError:
-    print("UWAGA: Biblioteka 'fim' nie jest zainstalowana (pip install fim).")
+    logging.warning("UWAGA: Biblioteka 'fim' nie jest zainstalowana (pip install fim).")
     FIM_AVAILABLE = False
 
 
@@ -121,56 +125,81 @@ class BenchmarkRunner:
 
     def run_comparison(
         self,
-        datasets_supports: Tuple[Tuple[Dict, List]],
+        datasets_config: List[Dict[str | Any]],
         output_file_path: str | Path,
         iter: int = 1,
+        log_file_path: str | Path = None,
     ):
+        # Konfiguracja loggera jeśli podano ścieżkę do pliku logu
+        if log_file_path:
+            file_handler = logging.FileHandler(log_file_path)
+            formatter = logging.Formatter("%(asctime)s - %(levelname)s - %(message)s")
+            file_handler.setFormatter(formatter)
+            logger = logging.getLogger(__name__)
+            logger.addHandler(file_handler)
+
         for i in range(1, iter + 1):
-            print(f"-=== Iteracja {i}/{iter} ===-")
+            if log_file_path:
+                logger.info(f"-=== Iteracja {i}/{iter} ===-")
+
             loader = TransactionLoader()
 
-            for datasets, support_range in datasets_supports:
-                for data_name, data_path in datasets.items():
-                    print("\n==========================================")
-                    print(f" ZBIÓR: {data_name} ({data_path})")
-                    print("==========================================")
+            for dataset_config in datasets_config:
+                data_name = dataset_config["name"]
+                data_path = dataset_config["dataset_path"]
+                support_range = dataset_config["min_supports"]
+                if log_file_path:
+                    logger.info(
+                        "\n==========================================\n"
+                        + f" ZBIÓR: {data_name} ({data_path})\n"
+                        + "=========================================="
+                    )
 
-                    if not os.path.exists(data_path):
-                        print("BŁĄD: Plik nie istnieje!")
-                        continue
+                if not os.path.exists(data_path):
+                    if log_file_path:
+                        logger.error("BŁĄD: Plik nie istnieje!")
+                    continue
 
-                    current_dataset = loader.load(data_path)
-                    print(f"-> Załadowano {len(current_dataset)} transakcji.")
+                current_dataset = loader.load(data_path)
+                if log_file_path:
+                    logger.info(f"-> Załadowano {len(current_dataset)} transakcji.")
 
-                    for algo_name, algo_class in self.algorithms.items():
-                        print(f"\n>>> Algorytm: {algo_name}")
+                for algo_name, algo_class in self.algorithms.items():
+                    if log_file_path:
+                        logger.info(f"\n>>> Algorytm: {algo_name}")
 
-                        for support in support_range:
-                            print(f"    MinSup: {support:<4} ... ", end="", flush=True)
+                    for support in support_range:
+                        if log_file_path:
+                            logger.info(f"    MinSup: {support:<4} ... ")
 
-                            try:
-                                exec_time, mem_net_peak = self.measure_execution(
-                                    algo_class, current_dataset, support
-                                )
+                        try:
+                            exec_time, mem_net_peak = self.measure_execution(
+                                algo_class, current_dataset, support
+                            )
 
-                                new_row = {
-                                    "iteration": i,
-                                    "dataset": data_name,
-                                    "algorithm": algo_name,
-                                    "support": support,
-                                    "time": exec_time,
-                                    "memory": mem_net_peak,
-                                }
+                            new_row = {
+                                "iteration": i,
+                                "dataset": data_name,
+                                "algorithm": algo_name,
+                                "support": support,
+                                "time": exec_time,
+                                "memory": mem_net_peak,
+                            }
 
-                                self.results.loc[len(self.results)] = new_row
-                                print(
+                            self.results.loc[len(self.results)] = new_row
+                            if log_file_path:
+                                logger.info(
                                     f"OK | Czas: {exec_time:.4f}s | RAM (Net Peak): {mem_net_peak:.2f}MB"
                                 )
-                            except Exception as e:
-                                print(f"BŁĄD ({e})")
-                                import traceback
+                        except Exception as e:
+                            if log_file_path:
+                                logger.error(f"BŁĄD ({e})")
 
-                                traceback.print_exc()
+                            import traceback
+
+                            error_traceback = traceback.format_exc()
+                            if log_file_path:
+                                logger.error(error_traceback)
 
         # Save the DataFrame to CSV, creating necessary directories if they don't exist
         output_dir = os.path.dirname(output_file_path)
@@ -228,43 +257,3 @@ class BenchmarkRunner:
             plt.gca().invert_xaxis()
             plt.tight_layout()
             plt.show()
-
-
-if __name__ == "__main__":
-    # 1. Algorytmy
-    algos_to_test = {
-        "My Eclat": EclatMiner,
-        "My Postdiffset": PostdiffsetMiner,
-        "My Adv. Eclat": AdvancedEclatMiner,
-    }
-
-    if FIM_AVAILABLE:
-        algos_to_test["FIM Apriori"] = DirectFimApriori
-        algos_to_test["FIM Eclat"] = DirectFimEclat
-
-    # 2. Dane
-    datasets_rare_map = {
-        "Retail": "data/retail.txt",
-        "Kosarak": "data/kosarak.dat.txt",
-    }
-
-    datasets_dense_map = {
-        "Chess": "data/chess.txt",
-        "Mushrooms": "data/mushrooms.txt",
-    }
-
-    # 3. Supporty
-    supports_rare = [i / 10 for i in range(1, 10)]
-    supports_dense = [i / 10 for i in range(7, 10)]
-
-    # 4. Start
-    runner = BenchmarkRunner(algos_to_test)
-    runner.run_comparison(
-        ((datasets_rare_map, supports_rare), (datasets_dense_map, supports_dense)),
-        "results/results.csv",
-        10,
-    )
-
-    print("\nRysowanie wykresów...")
-    runner.plot_results(metric="time")
-    runner.plot_results(metric="memory")
