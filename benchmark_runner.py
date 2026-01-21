@@ -112,7 +112,6 @@ class BenchmarkRunner:
         execution_time = end_time - start_time
 
         # Net Memory Usage = Szczyt - Pamięć Bazowa (ile algorytm 'dodał' do procesu)
-        # Czasem lepiej pokazywać Peak absolutny, ale Net jest lepszy do porównań
         peak_memory_bytes = memory_stats["peak"] - baseline_mem
 
         # Zabezpieczenie: Jeśli algorytm był super szybki lub zwolnił pamięć, wynik może być < 0
@@ -214,7 +213,7 @@ class BenchmarkRunner:
             memory=("memory", "mean"),
         )
 
-    def plot_results(self, metric="time"):
+    def plot_results(self, metric="time", figures_path: str | Path = None):
         if self.results_avg.empty:
             print("Brak wyników do wyświetlenia.")
             return
@@ -256,4 +255,6 @@ class BenchmarkRunner:
             plt.grid(True, which="both", linestyle="--", alpha=0.7)
             plt.gca().invert_xaxis()
             plt.tight_layout()
+            if figures_path:
+                plt.savefig(fname=Path(figures_path) / str(data_name.lower() + "_" + metric))
             plt.show()

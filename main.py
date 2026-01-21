@@ -2,10 +2,12 @@ import argparse
 import datetime
 import os
 from pathlib import Path
+from typing import Type, Dict
 
 from alg_advanced_eclat import AdvancedEclatMiner
 from alg_eclat import EclatMiner
 from alg_postdiffset import PostdiffsetMiner
+from base_miner import BaseMiner
 from benchmark_runner import (
     BenchmarkRunner,
     FIM_AVAILABLE,
@@ -40,6 +42,14 @@ def main():
         help="Path to save the averaged results in CSV format",
     )
 
+    # Figures folder path
+    parser.add_argument(
+        "--figures_path",
+        type=str,
+        default="results/figures/",
+        help="Path to save the figures",
+    )
+
     # Number of iterations
     parser.add_argument(
         "--iterations",
@@ -66,6 +76,14 @@ def main():
 
     args = parser.parse_args()
 
+    # Utworzenie folderów do results
+    os.makedirs(Path(args.results_file).parent, exist_ok=True)
+    # Utworzenie folderów do results_avg
+    os.makedirs(Path(args.results_avg_file).parent, exist_ok=True)
+    # Utworzenie folderów do figures
+    os.makedirs(Path(args.figures_path), exist_ok=True)
+
+
     # Utworzenie folderów do pliku log
     os.makedirs(Path(args.log_file).parent, exist_ok=True)
 
@@ -73,7 +91,7 @@ def main():
     config = load_config(args.input_config)
 
     # Algorytmy do testowania
-    algos_to_test = {
+    algos_to_test: Dict[str|Type[BaseMiner]] = {
         "My Eclat": EclatMiner,
         "My Postdiffset": PostdiffsetMiner,
         "My Adv. Eclat": AdvancedEclatMiner,
@@ -90,9 +108,8 @@ def main():
     )
 
     print("\nRysowanie wykresów...")
-    runner.plot_results(metric="time")
-    runner.plot_results(metric="memory")
-
+    runner.plot_results(metric="time", figures_path = args.figures_path)
+    runner.plot_results(metric="memory", figures_path = args.figures_path)
 
 if __name__ == "__main__":
     main()
