@@ -80,9 +80,7 @@ class AdvancedEclatMiner(BaseMiner):
                 self._mine_bitset(prefix=new_prefix, items=next_candidates)
 
 
-# ----------------------------------------------------------------------
 # Przykład użycia
-# ----------------------------------------------------------------------
 if __name__ == "__main__":
     dummy_data = [{1, 3, 4}, {2, 3, 5}, {1, 2, 3, 5}, {2, 5}]
 
