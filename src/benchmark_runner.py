@@ -236,6 +236,7 @@ class BenchmarkRunner:
             plt.gca().invert_xaxis()
             plt.tight_layout()
             if figures_path:
+                os.makedirs(Path(figures_path), exist_ok=True)
                 plt.savefig(
                     fname=Path(figures_path) / str(data_name.lower() + "_" + metric)
                 )

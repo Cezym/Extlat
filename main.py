@@ -79,7 +79,6 @@ def main():
 
     os.makedirs(Path(args.results_file).parent, exist_ok=True)
     os.makedirs(Path(args.results_avg_file).parent, exist_ok=True)
-    os.makedirs(Path(args.figures_path), exist_ok=True)
 
     os.makedirs(Path(args.log_file).parent, exist_ok=True)
 
