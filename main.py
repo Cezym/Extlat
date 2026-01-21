@@ -4,11 +4,11 @@ import os
 from pathlib import Path
 from typing import Type, Dict
 
-from alg_advanced_eclat import AdvancedEclatMiner
-from alg_eclat import EclatMiner
-from alg_postdiffset import PostdiffsetMiner
-from base_miner import BaseMiner
-from benchmark_runner import (
+from src.alg_advanced_eclat import AdvancedEclatMiner
+from src.alg_eclat import EclatMiner
+from src.alg_postdiffset import PostdiffsetMiner
+from src.base_miner import BaseMiner
+from src.benchmark_runner import (
     BenchmarkRunner,
     FIM_AVAILABLE,
     DirectFimApriori,

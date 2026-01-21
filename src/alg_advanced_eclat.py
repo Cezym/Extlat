@@ -1,5 +1,5 @@
 from typing import List, Set, Dict, FrozenSet, Tuple
-from base_miner import BaseMiner
+from src.base_miner import BaseMiner
 
 from bitarray import bitarray
 

@@ -13,8 +13,8 @@ import logging
 logging.basicConfig(level=logging.INFO)
 
 # --- IMPORTY KLAS BAZOWYCH ---
-from data_manager import TransactionLoader
-from base_miner import BaseMiner
+from src.data_manager import TransactionLoader
+from src.base_miner import BaseMiner
 import pandas as pd
 
 # --- IMPORTY ALGORYTMÓW ---

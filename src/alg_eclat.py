@@ -1,5 +1,5 @@
-from base_miner import BaseMiner
-from data_manager import TransactionLoader
+from src.base_miner import BaseMiner
+from src.data_manager import TransactionLoader
 
 
 class EclatMiner(BaseMiner):
