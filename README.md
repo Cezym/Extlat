@@ -6,66 +6,29 @@ A project developed as part of the Data Mining course. It is designed to analyze
 
 The project provides the following algorithms:
 
-* 
-**Classic Eclat**: A custom implementation utilizing depth-first search (DFS) and intersection operations on a vertical data representation (TID-sets).
-
-
-* 
-**Postdiffset**: A hybrid approach that optimizes memory usage by switching data representations during recursion (transitioning from full TID-sets to Diffsets).
-
-
-* 
-**Advanced Eclat**: A highly optimized implementation based on bit vectors (using the `bitarray` library), replacing standard ID sets for faster intersections.
-
-
-* 
-**PyFIM Apriori & Eclat**: Adapters that allow running and comparing reference implementations from the external `pyfim` library.
-
-
+- **Classic Eclat**: A custom implementation utilizing depth-first search (DFS) and intersection operations on a vertical data representation (TID-sets).
+- **Postdiffset**: A hybrid approach that optimizes memory usage by switching data representations during recursion (transitioning from full TID-sets to Diffsets).
+- **Advanced Eclat**: A highly optimized implementation based on bit vectors (using the `bitarray` library), replacing standard ID sets for faster intersections.
+- **PyFIM Apriori & Eclat**: Adapters that allow running and comparing reference implementations from the external `pyfim` library.
 
 ## Project Structure
 
 The key source files are located in the `src/` directory:
 
-* 
-`data_manager.py` - Responsible for loading transactions from files and transforming them into a vertical format.
-
-
-* 
-`base_miner.py` - Abstract base class inherited by all algorithms.
-
-
-* 
-`alg_eclat.py` - Implementation of the classic Eclat algorithm.
-
-
-* 
-`alg_postdiffset.py` - Implementation of the Postdiffset algorithm.
-
-
-* 
-`alg_advanced_eclat.py` - Implementation of the Advanced Eclat algorithm.
-
-
-* 
-`benchmark_runner.py` - Module responsible for running experiments, measuring time, and aggregating peak RAM usage via the `psutil` library.
-
-
+- `data_manager.py` - Responsible for loading transactions from files and transforming them into a vertical format.
+- `base_miner.py` - Abstract base class inherited by all algorithms.
+- `alg_eclat.py` - Implementation of the classic Eclat algorithm.
+- `alg_postdiffset.py` - Implementation of the Postdiffset algorithm.
+- `alg_advanced_eclat.py` - Implementation of the Advanced Eclat algorithm.
+- `benchmark_runner.py` - Module responsible for running experiments, measuring time, and aggregating peak RAM usage via the `psutil` library.
 
 ## Requirements and Installation
 
 To run the project, the environment must meet the following criteria:
 
-* Python 3.14 
-
-
-* 
-`uv` tool (package and environment manager) 
-
-
-* Python dependencies: `bitarray`, `psutil`, `pyfim`  (along with `pandas` and `matplotlib` for data handling and plotting).
-
-
+- Python 3.14
+- `uv` tool (package and environment manager)
+- Python dependencies: `bitarray`, `psutil`, `pyfim` (along with `pandas` and `matplotlib` for data handling and plotting).
 
 To install all required dependencies using the `uv` environment, run the following command:
 
