@@ -117,13 +117,10 @@ Example input file:
 
 After the benchmark finishes, three main groups of results are generated:
 
-1. 
-**Detailed CSV File**: Contains information about individual runs (iteration number, dataset name, algorithm name, support value, execution time in seconds, and net peak memory usage in MB).
+1. **Detailed CSV File**: Contains information about individual runs (iteration number, dataset name, algorithm name, support value, execution time in seconds, and net peak memory usage in MB).
 
 
-2. 
-**Averaged CSV File**: Aggregated time and memory results for each combination of dataset, algorithm, and support.
+2. **Averaged CSV File**: Aggregated time and memory results for each combination of dataset, algorithm, and support.
 
 
-3. 
-**PNG Plots**: Performance and memory usage plots automatically exported to the specified directory, showing the relationship between performance and minimum support.
+3. **PNG Plots**: Performance and memory usage plots automatically exported to the specified directory, showing the relationship between performance and minimum support.
